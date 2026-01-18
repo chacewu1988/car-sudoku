@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快乐小车库 - 幼儿数独</title>
+    <style>
+        :root {
+            --primary-color: #ffcc00;
+            --bg-color: #e0f7fa;
+            --grid-color: #ffffff;
+        }
+        body {
+            font-family: 'Comic Sans MS', 'Microsoft YaHei', cursive;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+        h1 { color: #ff5722; text-shadow: 2px 2px #fff; margin-bottom: 10px; }
+        .controls { margin-bottom: 20px; }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 15px;
+            background: var(--primary-color);
+            box-shadow: 0 4px #b89200;
+            transition: 0.1s;
+            margin: 0 5px;
+        }
+        button:active { box-shadow: 0 0px; transform: translateY(4px); }
+        button.active { background: #ff9800; color: white; }
+
+        .sudoku-grid {
+            display: grid;
+            background: #8bc34a;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            gap: 4px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .cell.fixed { background: #f0f0f0; cursor: not-allowed; }
+        .cell.error { background: #ffcdd2; animation: shake 0.3s; }
+        
+        .car-picker {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            background: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 20px;
+        }
+        .car-option {
+            font-size: 35px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+        }
+        .car-option.selected { border-color: #ff5722; background: white; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏎️ 快乐小车库 🚌</h1>
+
+    <div class="controls">
+        <button id="btn5" onclick="initGame(5)" class="active">5格模式</button>
+        <button id="btn6" onclick="initGame(6)">6格模式</button>
+    </div>
+
+    <div id="grid" class="sudoku-grid"></div>
+
+    <div id="picker" class="car-picker"></div>
+
+    <script>
+        const CARS = ["🏎️", "🚌", "🚑", "🚜", "🚓", "🚚"];
+        let currentSize = 5;
+        let selectedCarIdx = 0;
+        let gridData = [];
+
+        function initGame(size) {
+            currentSize = size;
+            document.getElementById('btn5').className = size === 5 ? 'active' : '';
+            document.getElementById('btn6').className = size === 6 ? 'active' : '';
+            
+            const gridEl = document.getElementById('grid');
+            gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            
+            // 生成简单题库 (演示用，实际可扩展更多随机性)
+            gridData = Array(size).fill(0).map(() => Array(size).fill(null));
+            generatePuzzle(size);
+            
+            renderGrid();
+            renderPicker();
+        }
+
+        function generatePuzzle(size) {
+            // 简单的对角线填充+打乱算法
+            for(let i=0; i<size; i++) {
+                let val = ((i + 1) % size) || size;
+                gridData[i][i] = { val, fixed: true };
+                // 随机放几个预设车
+                let randomCol = Math.floor(Math.random() * size);
+                if(randomCol !== i) gridData[i][randomCol] = { val: ((i+val)%size)+1, fixed: true };
+            }
+        }
+
+        function renderGrid() {
+            const gridEl = document.getElementById('grid');
+            gridEl.innerHTML = '';
+            for(let r=0; r<currentSize; r++) {
+                for(let c=0; c<currentSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if(gridData[r][c]?.fixed) cell.classList.add('fixed');
+                    cell.innerText = gridData[r][c] ? CARS[gridData[r][c].val - 1] : '';
+                    cell.onclick = () => fillCell(r, c);
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function renderPicker() {
+            const pickerEl = document.getElementById('picker');
+            pickerEl.innerHTML = '';
+            for(let i=0; i<currentSize; i++) {
+                const opt = document.createElement('div');
+                opt.className = `car-option ${i === selectedCarIdx ? 'selected' : ''}`;
+                opt.innerText = CARS[i];
+                opt.onclick = () => {
+                    selectedCarIdx = i;
+                    renderPicker();
+                };
+                pickerEl.appendChild(opt);
+            }
+        }
+
+        function fillCell(r, c) {
+            if(gridData[r][c]?.fixed) return;
+            
+            const newVal = selectedCarIdx + 1;
+            // 简单的逻辑检查
+            if(checkError(r, c, newVal)) {
+                const cell = document.querySelectorAll('.cell')[r * currentSize + c];
+                cell.classList.add('error');
+                setTimeout(() => cell.classList.remove('error'), 500);
+                return;
+            }
+
+            gridData[r][c] = { val: newVal, fixed: false };
+            renderGrid();
+            checkWin();
+        }
+
+        function checkError(r, c, val) {
+            for(let i=0; i<currentSize; i++) {
+                if(gridData[r][i]?.val === val && i !== c) return true;
+                if(gridData[i][c]?.val === val && i !== r) return true;
+            }
+            return false;
+        }
+
+        function checkWin() {
+            let win = true;
+            for(let r=0; r<currentSize; r++) {
+                for(let c=0; c<currentSize; c++) {
+                    if(!gridData[r][c]) win = false;
+                }
+            }
+            if(win) alert("太棒了！小车全部停好啦！🎉");
+        }
+
+        initGame(5);
+    </script>
+</body>
+</html>
+
