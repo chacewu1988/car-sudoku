@@ -2,16 +2,23 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>快乐交通工具数独</title>
     <style>
         :root {
             --primary-color: #ffcc00;
             --bg-color: #e0f7fa;
-            --text-color: #333;
+            --grid-bg: #8bc34a;
         }
         
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            margin: 0; 
+            padding: 0; 
+        }
 
         body {
             font-family: 'Comic Sans MS', 'Microsoft YaHei', cursive;
@@ -19,118 +26,129 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 0;
-            padding: 10px;
             min-height: 100vh;
+            padding: 10px;
             user-select: none;
+            overflow-x: hidden;
         }
 
         h1 { 
             color: #ff5722; 
             text-shadow: 1px 1px #fff; 
-            margin: 5px 0; 
-            font-size: clamp(1.2rem, 5vw, 1.8rem); /* 标题大小随屏幕自动调整 */
+            margin: 10px 0; 
+            font-size: clamp(1.2rem, 5vw, 1.8rem);
         }
 
-        /* 顶部模式切换区 */
+        /* 顶部导航区 */
         .mode-selector {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 6px;
+            gap: 8px;
             margin-bottom: 15px;
-            width: 100%;
             max-width: 500px;
         }
         
         button {
-            padding: 8px 12px;
+            padding: 8px 14px;
             font-size: 14px;
             cursor: pointer;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             background: white;
-            box-shadow: 0 3px #ddd;
-            transition: 0.1s;
+            box-shadow: 0 3px #ccc;
+            font-weight: bold;
         }
         button.active { background: #ff9800; color: white; box-shadow: 0 3px #e65100; }
-        button:active { transform: translateY(2px); box-shadow: 0 1px #999; }
         .reset-btn { background: #81d4fa; }
 
-        /* 核心游戏网格容器 */
+        /* 核心修复：强制等比正方形网格容器 */
         .sudoku-container {
             width: 100%;
-            max-width: min(95vw, 500px); /* 宽度取屏幕宽度的95%或500px中的最小值 */
-            margin: 0 auto;
+            max-width: 450px; /* 限制最大尺寸，防止在大屏iPad上过大 */
+            aspect-ratio: 1 / 1; /* 容器本身保持正方形 */
+            background: var(--grid-bg);
+            padding: 8px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            display: flex;
         }
 
         .sudoku-grid {
             display: grid;
-            background: #8bc34a;
-            padding: 8px;
-            border-radius: 12px;
             gap: 4px;
             width: 100%;
-            aspect-ratio: 1 / 1; /* 保持正方形 */
+            height: 100%;
+            /* 关键修复：强制行和列都平分空间 */
+            grid-template-columns: repeat(var(--size, 5), 1fr);
+            grid-template-rows: repeat(var(--size, 5), 1fr);
         }
         
         .cell {
             background: white;
-            border-radius: 6px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(20px, 6vw, 40px); /* 汽车图标随格子大小变化 */
             cursor: pointer;
             position: relative;
+            /* 确保内容不会撑开格子 */
+            overflow: hidden; 
+        }
+
+        /* 图标大小根据格子动态缩放 */
+        .cell span {
+            font-size: calc(80vw / var(--size, 5) * 0.5); 
+        }
+        @media (min-width: 500px) {
+            .cell span { font-size: calc(450px / var(--size, 5) * 0.6); }
         }
 
         .cell.fixed { background: #f1f8e9; }
-        .cell.user-filled { color: #1976d2; animation: pop 0.2s; }
+        .cell.user-filled { color: #1976d2; animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .cell.error { background: #ffcdd2; animation: shake 0.3s; }
         
-        /* 底部汽车选择器 */
+        /* 底部选择器 */
         .car-picker {
-            margin-top: auto; /* 自动推到底部 */
-            padding: 15px 5px;
+            margin-top: 20px;
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
             max-width: 500px;
+            padding-bottom: 20px;
         }
         
         .car-option {
-            font-size: clamp(30px, 8vw, 45px);
-            padding: 8px;
+            font-size: 40px;
+            padding: 10px;
             border: 3px solid transparent;
-            border-radius: 15px;
-            background: rgba(255,255,255,0.6);
+            border-radius: 20px;
+            background: white;
             cursor: pointer;
-            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
         .car-option.selected { 
             border-color: #ff5722; 
-            background: white; 
-            transform: scale(1.1);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transform: scale(1.15);
+            box-shadow: 0 6px 12px rgba(255,87,34,0.3);
         }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-3px); }
-            75% { transform: translateX(3px); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
         }
         @keyframes pop {
-            0% { transform: scale(0.8); }
+            0% { transform: scale(0.5); }
             100% { transform: scale(1); }
         }
     </style>
 </head>
 <body>
 
-    <h1>🚀 快乐交通工具数独 🚢</h1>
+    <h1>🏎️ 快乐交通工具数独 🚀</h1>
 
     <div class="mode-selector" id="modeSelector"></div>
 
@@ -164,8 +182,10 @@
 
         function changeMode(size) {
             currentSize = size;
+            document.documentElement.style.setProperty('--size', size);
             for (let i = 3; i <= 8; i++) {
-                document.getElementById('btn' + i).className = (i === size ? 'active' : '');
+                const btn = document.getElementById('btn' + i);
+                if(btn) btn.className = (i === size ? 'active' : '');
             }
             selectedCarIdx = 0;
             resetGame();
@@ -180,10 +200,13 @@
         function generateSudoku(size) {
             const board = Array.from({ length: size }, () => Array(size).fill(0));
             const nums = Array.from({length: size}, (_, i) => i + 1);
-            const shuffle = (array) => array.sort(() => Math.random() - 0.5);
-            const baseRow = shuffle([...nums]);
+            const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
+            const baseRow = shuffle(nums);
             
-            let step = (size === 4 || size === 6) ? 2 : (size === 8 ? 3 : 1);
+            // 步长算法，确保行列不重复
+            let step = 1;
+            if (size === 4 || size === 6) step = 2;
+            if (size === 8) step = 3;
 
             for (let r = 0; r < size; r++) {
                 let offset = r * step;
@@ -194,8 +217,9 @@
             }
 
             const totalCells = size * size;
-            let keepCount = Math.floor(totalCells * (size < 5 ? 0.45 : 0.35));
+            let keepCount = Math.floor(totalCells * (size < 5 ? 0.4 : 0.3));
             const indices = shuffle(Array.from({length: totalCells}, (_, i) => i));
+            
             puzzle = Array.from({ length: size }, () => Array(size).fill(null));
             for (let i = 0; i < keepCount; i++) {
                 const idx = indices[i];
@@ -207,7 +231,6 @@
 
         function renderGrid() {
             const gridEl = document.getElementById('grid');
-            gridEl.style.gridTemplateColumns = `repeat(${currentSize}, 1fr)`;
             gridEl.innerHTML = '';
             
             for(let r=0; r<currentSize; r++) {
@@ -216,7 +239,9 @@
                     cell.className = 'cell';
                     const data = puzzle[r][c];
                     if(data) {
-                        cell.innerText = ALL_ELEMENTS[data.val - 1];
+                        const span = document.createElement('span');
+                        span.innerText = ALL_ELEMENTS[data.val - 1];
+                        cell.appendChild(span);
                         if(data.fixed) cell.classList.add('fixed');
                         else cell.classList.add('user-filled');
                     }
@@ -278,7 +303,7 @@
                 }
             }
             if(filled === currentSize * currentSize) {
-                setTimeout(() => alert("🎊 太棒了！任务完成！"), 200);
+                setTimeout(() => alert("🎊 滴滴！太棒了，所有车辆都停好啦！"), 200);
             }
         }
 
