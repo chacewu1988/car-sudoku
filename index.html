@@ -23,7 +23,7 @@
         h1 { color: #ff5722; text-shadow: 2px 2px #fff; margin: 10px 0; font-size: 24px; }
         .controls { margin-bottom: 15px; }
         button {
-            padding: 8px 15px;
+            padding: 8px 18px;
             font-size: 16px;
             cursor: pointer;
             border: none;
@@ -31,6 +31,7 @@
             background: var(--primary-color);
             box-shadow: 0 4px #b89200;
             margin: 0 5px;
+            font-weight: bold;
         }
         button.active { background: #ff9800; color: white; box-shadow: 0 4px #e65100; }
         
@@ -43,49 +44,55 @@
             gap: 5px;
         }
         .cell {
-            width: 55px;
-            height: 55px;
+            width: 58px;
+            height: 58px;
             background: white;
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 30px;
+            font-size: 32px;
             position: relative;
+            transition: background 0.2s;
         }
         /* 6格模式下的宫格边框增强 */
         .grid-6 .cell:nth-child(3n) { border-right: 3px solid #689f38; }
         .grid-6 .cell:nth-child(n+19):nth-child(-n+36) { border-top: 3px solid #689f38; }
 
-        .cell.fixed { background: #f1f8e9; color: #000; }
-        .cell.user-filled { color: #1976d2; }
+        .cell.fixed { background: #f1f8e9; cursor: default; }
+        .cell.user-filled { color: #1976d2; animation: pop 0.2s; }
         .cell.error { background: #ffcdd2; animation: shake 0.3s; }
         
         .car-picker {
-            margin-top: 20px;
+            margin-top: 25px;
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 12px;
+            gap: 15px;
             background: white;
             padding: 15px;
             border-radius: 25px;
             width: 90%;
             max-width: 400px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
         .car-option {
-            font-size: 35px;
+            font-size: 38px;
             padding: 5px;
             border: 3px solid transparent;
             border-radius: 15px;
-            transition: transform 0.1s;
+            cursor: pointer;
         }
-        .car-option.selected { border-color: #ff5722; transform: scale(1.2); }
+        .car-option.selected { border-color: #ff5722; background: #fff3e0; transform: scale(1.1); }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-4px); }
             75% { transform: translateX(4px); }
+        }
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            100% { transform: scale(1); }
         }
     </style>
 </head>
@@ -96,7 +103,7 @@
     <div class="controls">
         <button id="btn5" onclick="changeMode(5)" class="active">5格模式</button>
         <button id="btn6" onclick="changeMode(6)">6格模式</button>
-        <button onclick="resetGame()" style="background:#81d4fa; box-shadow: 0 4px #0288d1;">重玩</button>
+        <button onclick="resetGame()" style="background:#81d4fa; box-shadow: 0 4px #0288d1;">新游戏</button>
     </div>
 
     <div id="grid" class="sudoku-grid"></div>
@@ -107,8 +114,7 @@
         const CARS = ["🏎️", "🚌", "🚑", "🚜", "🚓", "🚚"];
         let currentSize = 5;
         let selectedCarIdx = 0;
-        let solution = [];
-        let puzzle = [];
+        let puzzle = []; // 玩家看到的网格
 
         function changeMode(size) {
             currentSize = size;
@@ -123,37 +129,37 @@
             renderPicker();
         }
 
-        // 生成合法的数独矩阵
         function generateSudoku(size) {
-            const grid = Array.from({ length: size }, () => Array(size).fill(0));
+            // 1. 生成一个完整合法的底盘
+            const board = Array.from({ length: size }, () => Array(size).fill(0));
+            const nums = Array.from({length: size}, (_, i) => i + 1);
             
-            // 基础填充：行移动法
-            let shift = (size === 6) ? [0, 2, 4, 1, 3, 5] : [0, 1, 2, 3, 4];
-            let base = Array.from({length: size}, (_, i) => i + 1);
-            // 随机打乱基础数字序列
-            base.sort(() => Math.random() - 0.5);
-
+            // 使用简单的有效位移生成基础盘面
+            const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+            const baseRow = shuffle([...nums]);
+            
             for (let r = 0; r < size; r++) {
+                let offset;
+                if (size === 5) offset = r * 2; // 5是质数，位移2可保证每行不重
+                if (size === 6) offset = Math.floor(r / 2) + (r % 2) * 3; 
+                
                 for (let c = 0; c < size; c++) {
-                    grid[r][c] = base[(c + (size === 6 ? [0,3,1,4,2,5][r] : r)) % size];
+                    board[r][c] = baseRow[(c + offset) % size];
                 }
             }
-            
-            // 随机交换行和列（仅限同组内）来增加随机性
-            shuffleGrid(grid, size);
-            solution = JSON.parse(JSON.stringify(grid));
-            
-            // 挖洞：根据难度保留部分数字
-            puzzle = grid.map(row => row.map(val => Math.random() > 0.4 ? val : null));
-        }
 
-        function shuffleGrid(grid, size) {
-            // 简单的行列交换逻辑
-            for(let i=0; i<10; i++) {
-                let r1 = Math.floor(Math.random() * size);
-                let r2 = Math.floor(Math.random() * size);
-                // 仅交换行不破坏横向规则，但在数独中需谨慎。此处由于是基础逻辑演示，采用行列置换。
-                [grid[r1], grid[r2]] = [grid[r2], grid[r1]];
+            // 2. 挖洞 (减少初始车辆数量)
+            // 5格模式保留 9 个，6格模式保留 13 个
+            const totalCells = size * size;
+            const keepCount = size === 5 ? 9 : 13; 
+            const indices = shuffle(Array.from({length: totalCells}, (_, i) => i));
+            
+            puzzle = Array.from({ length: size }, () => Array(size).fill(null));
+            for (let i = 0; i < keepCount; i++) {
+                const idx = indices[i];
+                const r = Math.floor(idx / size);
+                const c = idx % size;
+                puzzle[r][c] = { val: board[r][c], fixed: true };
             }
         }
 
@@ -167,11 +173,14 @@
                 for(let c=0; c<currentSize; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    const val = puzzle[r][c];
-                    if(val !== null) {
-                        cell.innerText = CARS[val - 1];
-                        cell.classList.add('fixed');
+                    const data = puzzle[r][c];
+                    
+                    if(data) {
+                        cell.innerText = CARS[data.val - 1];
+                        if(data.fixed) cell.classList.add('fixed');
+                        else cell.classList.add('user-filled');
                     }
+                    
                     cell.onclick = () => fillCell(r, c);
                     gridEl.appendChild(cell);
                 }
@@ -194,42 +203,42 @@
         }
 
         function fillCell(r, c) {
-            // 如果是初始固定的车，不能修改
-            const cells = document.querySelectorAll('.cell');
-            const targetCell = cells[r * currentSize + c];
-            if(targetCell.classList.contains('fixed')) return;
+            if(puzzle[r][c]?.fixed) return;
             
             const newVal = selectedCarIdx + 1;
+            const cells = document.querySelectorAll('.cell');
+            const targetCell = cells[r * currentSize + c];
 
-            // 检查规则
+            // 冲突检查
             if(hasConflict(r, c, newVal)) {
                 targetCell.classList.add('error');
-                setTimeout(() => targetCell.classList.remove('error'), 300);
-            } else {
-                puzzle[r][c] = newVal;
-                targetCell.innerText = CARS[selectedCarIdx];
-                targetCell.classList.add('user-filled');
-                checkWin();
+                setTimeout(() => targetCell.classList.remove('error'), 400);
+                return;
             }
+
+            // 如果点击已有的车则清除，否则填入
+            if (puzzle[r][c]?.val === newVal) {
+                puzzle[r][c] = null;
+            } else {
+                puzzle[r][c] = { val: newVal, fixed: false };
+            }
+            
+            renderGrid();
+            checkWin();
         }
 
         function hasConflict(r, c, val) {
-            // 检查行
             for(let i=0; i<currentSize; i++) {
-                if(i !== c && puzzle[r][i] === val) return true;
+                if(i !== c && puzzle[r][i]?.val === val) return true;
+                if(i !== r && puzzle[i][c]?.val === val) return true;
             }
-            // 检查列
-            for(let i=0; i<currentSize; i++) {
-                if(i !== r && puzzle[i][c] === val) return true;
-            }
-            // 6格模式检查 2x3 区域
             if(currentSize === 6) {
                 let boxR = Math.floor(r / 2) * 2;
                 let boxC = Math.floor(c / 3) * 3;
                 for(let i=boxR; i<boxR+2; i++) {
                     for(let j=boxC; j<boxC+3; j++) {
                         if(i === r && j === c) continue;
-                        if(puzzle[i][j] === val) return true;
+                        if(puzzle[i][j]?.val === val) return true;
                     }
                 }
             }
@@ -237,8 +246,14 @@
         }
 
         function checkWin() {
-            if(puzzle.every(row => row.every(cell => cell !== null))) {
-                setTimeout(() => alert("🎉 太棒了！所有的车都停对位置了！"), 100);
+            let count = 0;
+            for(let r=0; r<currentSize; r++) {
+                for(let c=0; c<currentSize; c++) {
+                    if(puzzle[r][c] !== null) count++;
+                }
+            }
+            if(count === currentSize * currentSize) {
+                setTimeout(() => alert("🎉 恭喜！你把所有的小车都停好啦！"), 200);
             }
         }
 
